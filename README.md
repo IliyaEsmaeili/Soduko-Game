@@ -1,6 +1,5 @@
 # Sudoku Game in C++
 
-![Sudoku Menu](Screenshot%202025-04-03%20at%2010.19.08 PM.png)
 
 A terminal-based Sudoku game implemented in C++ with multiple difficulty levels and user authentication.
 
@@ -16,16 +15,16 @@ A terminal-based Sudoku game implemented in C++ with multiple difficulty levels 
 ## Screenshots
 
 **Login Screen**  
-![Login Screen](Screenshot%202025-04-03%20at%2010.18.51 PM.png)
+![Login Screen](/images/login.png)
 
 **Main Menu**  
-![Main Menu](Screenshot%202025-04-03%20at%2010.19.08 PM.png)
+![Main Menu](/images/menu.png)
 
 **Difficulty Selection**  
-![Difficulty Selection](Screenshot%202025-04-03%20at%2010.19.17 PM.png)
+![Difficulty Selection](/images/dif.png)
 
 **Gameplay**  
-![Gameplay](Screenshot%202025-04-03%20at%2010.19.26 PM.png)
+![Gameplay](/images/game.png)
 
 ## Installation
 
