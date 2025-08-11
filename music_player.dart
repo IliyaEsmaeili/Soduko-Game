@@ -60,24 +60,32 @@ class MusicPlayer {
     await _streamHandler!.connectAndSend(
       // Audio data callback
       (Uint8List data) {
-        print('Received audio chunk: ${data.length} bytes');
-        _audioChunks.add(data);
-        _byteController?.add(data);
-        
-        // Start playing after receiving first chunk
-        if (_audioChunks.length == 1) {
-          _startPlayback();
+        if (_byteController != null && !_byteController!.isClosed) {
+          print('Received audio chunk: ${data.length} bytes');
+          _audioChunks.add(data);
+          _byteController!.add(data);
+          
+          // Start playing after receiving first chunk
+          if (_audioChunks.length == 1) {
+            _startPlayback();
+          }
+        } else {
+          print('Stream controller is closed, ignoring chunk');
         }
       },
       onDone: () {
         print('Stream completed. Total chunks received: ${_audioChunks.length}');
-        _byteController?.close();
+        if (_byteController != null && !_byteController!.isClosed) {
+          _byteController!.close();
+        }
         isPlaying = false;
         onDone();
       },
       onError: (error) {
         print('Stream error: $error');
-        _byteController?.close();
+        if (_byteController != null && !_byteController!.isClosed) {
+          _byteController!.close();
+        }
         isPlaying = false;
         onError(error);
       },
@@ -102,11 +110,24 @@ class MusicPlayer {
 
   void stop() {
     print('Stopping music playback...');
-    _audioPlayer.stop();
-    _streamHandler?.close();
-    _byteController?.close();
-    _audioChunks.clear();
     isPlaying = false;
+    
+    // Stop audio player first
+    _audioPlayer.stop();
+    
+    // Close stream handler (this will stop new data)
+    _streamHandler?.close();
+    _streamHandler = null;
+    
+    // Wait a bit then close stream controller
+    Future.delayed(Duration(milliseconds: 100), () {
+      if (_byteController != null && !_byteController!.isClosed) {
+        _byteController!.close();
+      }
+      _byteController = null;
+    });
+    
+    _audioChunks.clear();
   }
 }
 

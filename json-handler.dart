@@ -59,6 +59,7 @@ class JsonStreamHandler {
 
   Socket? _socket;
   String _buffer = ''; // Buffer for incomplete data
+  bool _isClosed = false;
 
   JsonStreamHandler({
     required this.serverIp,
@@ -91,6 +92,11 @@ class JsonStreamHandler {
       // Listen for incoming data chunks continuously
       _socket!.listen(
         (List<int> data) {
+          if (_isClosed) {
+            print('Handler is closed, ignoring incoming data');
+            return;
+          }
+          
           try {
             String chunkString = utf8.decode(data);
             _buffer += chunkString;
@@ -101,21 +107,28 @@ class JsonStreamHandler {
             
             for (String line in lines) {
               if (line.trim().isEmpty) continue;
+              if (_isClosed) break; // Check again inside loop
               
               print('Processing Base64 chunk: ${line.substring(0, line.length > 100 ? 100 : line.length)}...');
 
               try {
                 // All messages are Base64 strings
                 final bytes = base64.decode(line.trim());
-                onData(bytes);
+                if (!_isClosed) {
+                  onData(bytes);
+                }
               } catch (e) {
                 print('Error decoding Base64 chunk: $e');
-                onError?.call(e);
+                if (!_isClosed) {
+                  onError?.call(e);
+                }
               }
             }
           } catch (e) {
             print('Error processing chunk: $e');
-            onError?.call(e);
+            if (!_isClosed) {
+              onError?.call(e);
+            }
           }
         },
         onDone: () {
@@ -137,6 +150,7 @@ class JsonStreamHandler {
   }
 
   void close() {
+    _isClosed = true;
     _socket?.close();
     _socket = null;
     _buffer = '';
