@@ -73,6 +73,7 @@ class JsonStreamHandler {
     Function? onError,
   }) async {
     try {
+      print('Attempting to connect to $serverIp:$serverPort');
       _socket = await Socket.connect(
         serverIp,
         serverPort,
@@ -88,7 +89,10 @@ class JsonStreamHandler {
       print('Sending JSON request: $requestString');
       _socket!.writeln(requestString);
       await _socket!.flush();
+      print('Request sent successfully');
 
+      int chunkCount = 0;
+      
       // Listen for incoming data chunks continuously
       _socket!.listen(
         (List<int> data) {
@@ -97,8 +101,12 @@ class JsonStreamHandler {
             return;
           }
           
+          print('Raw data received: ${data.length} bytes');
+          
           try {
             String chunkString = utf8.decode(data);
+            print('Decoded data: ${chunkString.substring(0, chunkString.length > 200 ? 200 : chunkString.length)}...');
+            
             _buffer += chunkString;
             
             // Split by newlines to handle complete messages
@@ -109,16 +117,31 @@ class JsonStreamHandler {
               if (line.trim().isEmpty) continue;
               if (_isClosed) break; // Check again inside loop
               
-              print('Processing Base64 chunk: ${line.substring(0, line.length > 100 ? 100 : line.length)}...');
+              print('Processing line ${++chunkCount}: ${line.substring(0, line.length > 100 ? 100 : line.length)}...');
 
               try {
-                // All messages are Base64 strings
-                final bytes = base64.decode(line.trim());
-                if (!_isClosed) {
-                  onData(bytes);
+                // Check if this looks like JSON (error response)
+                if (line.trim().startsWith('{') && line.trim().endsWith('}')) {
+                  print('Received JSON response (possible error): $line');
+                  Map<String, dynamic> jsonResponse = jsonDecode(line);
+                  print('Parsed JSON: $jsonResponse');
+                  
+                  // If it's an error response, call onError
+                  if (jsonResponse['success'] == false) {
+                    onError?.call('Server error: ${jsonResponse['message']}');
+                    return;
+                  }
+                } else {
+                  // Treat as Base64 audio data
+                  final bytes = base64.decode(line.trim());
+                  print('Decoded Base64 chunk: ${bytes.length} bytes');
+                  if (!_isClosed) {
+                    onData(bytes);
+                  }
                 }
               } catch (e) {
-                print('Error decoding Base64 chunk: $e');
+                print('Error processing line: $e');
+                print('Problematic line: ${line.substring(0, line.length > 500 ? 500 : line.length)}');
                 if (!_isClosed) {
                   onError?.call(e);
                 }
@@ -133,6 +156,7 @@ class JsonStreamHandler {
         },
         onDone: () {
           print('Server closed connection');
+          print('Total chunks processed: $chunkCount');
           onDone?.call();
           close();
         },

@@ -172,33 +172,59 @@ public class ClientHandler implements Runnable {
 
 
     private Response musicRequestHandler() {
+        System.out.println("=== MUSIC REQUEST HANDLER CALLED ===");
+        System.out.println("Raw JSON request: " + jsonRequest);
+        
         MusicRequest musicRequest;
         try {
             musicRequest = gson.fromJson(jsonRequest, MusicRequest.class);
+            System.out.println("Parsed MusicRequest: " + musicRequest.toString());
+            System.out.println("Music name requested: " + musicRequest.getMusicName());
         } catch (IllegalArgumentException iae) {
+            System.out.println("Error parsing music request: " + iae.getMessage());
             throw new IllegalArgumentException("Bad argument for music request");
         }
 
         try {
-            if (!DataBase.loadSongsNames().contains(musicRequest.getMusicName())) {
+            System.out.println("Loading songs from database...");
+            java.util.List<String> availableSongs = DataBase.loadSongsNames();
+            System.out.println("Available songs: " + availableSongs);
+            
+            if (!availableSongs.contains(musicRequest.getMusicName())) {
+                System.out.println("Song not found: " + musicRequest.getMusicName());
                 throw new NoSuchFieldException("SONG NOT FOUND IN OUR DATA BASE");
             } else {
+                System.out.println("Song found! Processing: " + musicRequest.getMusicName());
                 String filePath = "src/com/lattestudio/musicplayer/db/musics/" + musicRequest.getMusicName();
+                System.out.println("File path: " + filePath);
                 Path path = Paths.get(filePath);
+                
+                if (!Files.exists(path)) {
+                    System.out.println("File does not exist at path: " + filePath);
+                    throw new NoSuchFieldException("MUSIC FILE NOT FOUND AT PATH: " + filePath);
+                }
+                
                 byte[] mp3Bytes = Files.readAllBytes(path);
+                System.out.println("File read successfully. Size: " + mp3Bytes.length + " bytes");
+                
                 String base64Data = Base64.getEncoder().encodeToString(mp3Bytes);
+                System.out.println("Base64 encoded. Length: " + base64Data.length() + " characters");
+                
                 int chunkSize = 20000;
                 int totalChunks = (int) Math.ceil((double) base64Data.length() / chunkSize);
+                System.out.println("Will send " + totalChunks + " chunks of " + chunkSize + " chars each");
                 
                 try (BufferedReader input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                      BufferedWriter output = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()))) {
                     
                     // Send Base64 chunks directly without metadata
+                    System.out.println("Starting to send chunks...");
                     for (int i = 0; i < totalChunks; i++) {
                         int start = i * chunkSize;
                         int end = Math.min(start + chunkSize, base64Data.length());
                         String chunk = base64Data.substring(start, end);
                         
+                        System.out.println("Sending chunk " + (i + 1) + "/" + totalChunks + " (" + chunk.length() + " chars)");
                         output.write(chunk);
                         output.newLine();
                         output.flush();
@@ -207,9 +233,11 @@ public class ClientHandler implements Runnable {
                         try {
                             Thread.sleep(50);
                         } catch (Exception e) {
+                            System.out.println("Error during sleep: " + e.getMessage());
                             throw new RuntimeException(e.getLocalizedMessage());
                         }
                     }
+                    System.out.println("All chunks sent successfully!");
                 }
             }
         } catch (IOException ie) {
