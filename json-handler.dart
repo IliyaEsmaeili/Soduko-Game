@@ -58,7 +58,6 @@ class JsonStreamHandler {
   final Map<String, String> jsonRequest;
 
   Socket? _socket;
-  bool _isFirstMessage = true;
   String _buffer = ''; // Buffer for incomplete data
 
   JsonStreamHandler({
@@ -68,13 +67,10 @@ class JsonStreamHandler {
   });
 
   Future<void> connectAndSend(
-    void Function(Uint8List) onData,
-    void Function(Map<String, dynamic>) onMetaData, // Separate callback for metadata
-    {
-      Function? onDone,
-      Function? onError,
-    }
-  ) async {
+    void Function(Uint8List) onData, {
+    Function? onDone,
+    Function? onError,
+  }) async {
     try {
       _socket = await Socket.connect(
         serverIp,
@@ -106,28 +102,15 @@ class JsonStreamHandler {
             for (String line in lines) {
               if (line.trim().isEmpty) continue;
               
-              print('Processing line: ${line.substring(0, line.length > 100 ? 100 : line.length)}...');
+              print('Processing Base64 chunk: ${line.substring(0, line.length > 100 ? 100 : line.length)}...');
 
-              // Handle the first JSON message (metadata)
-              if (_isFirstMessage) {
-                try {
-                  Map<String, dynamic> jsonResponse = jsonDecode(line);
-                  print('Received metadata: $jsonResponse');
-                  onMetaData(jsonResponse);
-                  _isFirstMessage = false;
-                } catch (e) {
-                  print('Error decoding metadata JSON: $e');
-                  onError?.call(e);
-                }
-              } else {
-                try {
-                  // Subsequent messages are raw Base64 strings
-                  final bytes = base64.decode(line.trim());
-                  onData(bytes);
-                } catch (e) {
-                  print('Error decoding Base64 chunk: $e');
-                  onError?.call(e);
-                }
+              try {
+                // All messages are Base64 strings
+                final bytes = base64.decode(line.trim());
+                onData(bytes);
+              } catch (e) {
+                print('Error decoding Base64 chunk: $e');
+                onError?.call(e);
               }
             }
           } catch (e) {
@@ -156,7 +139,6 @@ class JsonStreamHandler {
   void close() {
     _socket?.close();
     _socket = null;
-    _isFirstMessage = true;
     _buffer = '';
     print('Socket closed.');
   }

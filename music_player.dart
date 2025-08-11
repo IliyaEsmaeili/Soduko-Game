@@ -20,7 +20,6 @@ class MusicPlayer {
   _ChunkedAudioSource? _audioSource;
 
   Future<void> togglePlayPause({
-    required Function(Map<String, dynamic>) onMetaData, // Metadata callback
     required Function() onDone,
     required Function(Object) onError,
     required Map<String, String> jsonRequest,
@@ -46,11 +45,6 @@ class MusicPlayer {
       // Audio data callback
       (Uint8List data) {
         _byteController?.add(data);
-      },
-      // Metadata callback (separate parameter now)
-      (Map<String, dynamic> metadata) {
-        print('Received metadata in MusicPlayer: $metadata');
-        onMetaData(metadata);
       },
       onDone: () {
         _byteController?.close();

@@ -193,15 +193,7 @@ public class ClientHandler implements Runnable {
                 try (BufferedReader input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                      BufferedWriter output = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()))) {
                     
-                    // Send metadata response first
-                    Response response = new Response(true, "numofchunks : " + totalChunks);
-                    String metaJsonResponse = gson.toJson(response);
-                    output.write(metaJsonResponse);
-                    output.newLine();
-                    output.flush();
-                    Message.jsonSent("META JSON SENT : ", metaJsonResponse);
-                    
-                    // Send Base64 chunks
+                    // Send Base64 chunks directly without metadata
                     for (int i = 0; i < totalChunks; i++) {
                         int start = i * chunkSize;
                         int end = Math.min(start + chunkSize, base64Data.length());
