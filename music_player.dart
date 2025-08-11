@@ -18,6 +18,7 @@ class MusicPlayer {
   final _audioPlayer = AudioPlayer();
   StreamController<Uint8List>? _byteController;
   _ChunkedAudioSource? _audioSource;
+  List<Uint8List> _audioChunks = []; // Store chunks for debugging
 
   Future<void> togglePlayPause({
     required Function() onDone,
@@ -29,8 +30,11 @@ class MusicPlayer {
       return;
     }
 
+    print('Starting music playback...');
+    
     // Step 1: Prepare the stream controller
     _byteController = StreamController<Uint8List>.broadcast();
+    _audioChunks.clear();
 
     // Step 2: Connect to the server and send JSON
     _streamHandler = JsonStreamHandler(
@@ -41,33 +45,67 @@ class MusicPlayer {
 
     isPlaying = true;
 
+    // Step 3: Set up and play the audio player BEFORE connecting
+    _audioSource = _ChunkedAudioSource(_byteController!.stream);
+    
+    try {
+      await _audioPlayer.setAudioSource(_audioSource!);
+      print('Audio source set successfully');
+    } catch (e) {
+      print('Error setting audio source: $e');
+      onError(e);
+      return;
+    }
+
     await _streamHandler!.connectAndSend(
       // Audio data callback
       (Uint8List data) {
+        print('Received audio chunk: ${data.length} bytes');
+        _audioChunks.add(data);
         _byteController?.add(data);
+        
+        // Start playing after receiving first chunk
+        if (_audioChunks.length == 1) {
+          _startPlayback();
+        }
       },
       onDone: () {
+        print('Stream completed. Total chunks received: ${_audioChunks.length}');
         _byteController?.close();
         isPlaying = false;
         onDone();
       },
       onError: (error) {
+        print('Stream error: $error');
         _byteController?.close();
         isPlaying = false;
         onError(error);
       },
     );
+  }
 
-    // Step 3: Set up and play the audio player
-    _audioSource = _ChunkedAudioSource(_byteController!.stream);
-    await _audioPlayer.setAudioSource(_audioSource!);
-    await _audioPlayer.play();
+  Future<void> _startPlayback() async {
+    try {
+      print('Starting audio playback...');
+      await _audioPlayer.play();
+      print('Audio player started successfully');
+      
+      // Monitor playback state
+      _audioPlayer.playerStateStream.listen((state) {
+        print('Player state: ${state.playing}, ${state.processingState}');
+      });
+      
+    } catch (e) {
+      print('Error starting playback: $e');
+    }
   }
 
   void stop() {
+    print('Stopping music playback...');
     _audioPlayer.stop();
     _streamHandler?.close();
     _byteController?.close();
+    _audioChunks.clear();
     isPlaying = false;
   }
 }
@@ -78,6 +116,8 @@ class _ChunkedAudioSource extends StreamAudioSource {
 
   @override
   Future<StreamAudioResponse> request([int? start, int? end]) async {
+    print('Audio source request: start=$start, end=$end');
+    
     return StreamAudioResponse(
       sourceLength: null,
       contentLength: null,
